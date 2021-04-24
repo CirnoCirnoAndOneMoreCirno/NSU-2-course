@@ -1,0 +1,213 @@
+-O0 -march=x86-64 -fverbose-asm
+
+std::setprecision(int):
+        pushq   %rbp  #
+        movq    %rsp, %rbp      #,
+        movl    %edi, -4(%rbp)  # __n, __n
+        movl    -4(%rbp), %eax  # __n, D.53496
+        popq    %rbp    #
+        ret     
+calculateFunc(long double, long long):
+        pushq   %rbp  #Сохраняем указатель кадра вызвавшей программы
+        movq    %rsp, %rbp      #Нормируем указатель кадра
+        movq    %rdi, -40(%rbp) # Выделяем место в стеке под кадр; В rbp-40 лежит n
+        #
+
+        fldz    
+        fstpt   -16(%rbp)     # Это res
+        movq    $0, -24(%rbp)   #Это i
+.L7:
+        movq    -24(%rbp), %rax # В rax лежит i
+        cmpq    -40(%rbp), %rax # Из n вычли i, установили флаги
+        jge     .L4       #Если i>=n, перейти на метку .L4
+
+        #Начинаем считать значение sign
+        movq    -24(%rbp), %rax # rax = i
+        andl    $1, %eax        # (i%2)
+        testq   %rax, %rax    # (i%2 == 0)
+        jne     .L5       #Если (i%2 != 0), перейти на метку .LC5
+        movl    $1, %eax        #eax = 1
+        jmp     .L6       # На метку L6
+.L5:
+        movl    $-1, %eax       #eax = -1
+.L6:
+        movb    %al, -25(%rbp)  # Присваиваем значение sign
+
+        #вычисляем res
+        movsbw  -25(%rbp), %ax      # Копируем 2 байта из sign в ax
+        movw    %ax, -48(%rbp)  # В rbp-48 временное значение вычислений в левой скобке, сейчас там sign
+        filds   -48(%rbp)     # Загружаем rbp-48 в st
+        fldt    16(%rbp)        # x в st
+        fmulp   %st, %st(1)   #sign*x
+
+        movq    -24(%rbp), %rax # rax = i
+        addq    $1, %rax        #rax = i+1
+        movq    %rax, -48(%rbp) # i+1 хранится в rbp-48
+        fildq   -48(%rbp)     # Загружаем rbp-48
+        fdivrp  %st, %st(1) # делим скобки
+
+        fldt    -16(%rbp)       # Это res
+        faddp   %st, %st(1)   #Прибавляем посчитанное выражение к res
+        fstpt   -16(%rbp)     # Сохраняем res
+
+        #x*=x
+        fldt    16(%rbp)        # это x
+        fmul    %st(0), %st     #x*x
+        fstpt   16(%rbp)      # x = x*x
+
+        addq    $1, -24(%rbp)   #i++
+        jmp     .L7       #Вернуться на L7
+.L4:
+        #return res
+        fldt    -16(%rbp)       # res
+        popq    %rbp    #
+        ret     
+.LC2:
+        .string "Enter x and n to calculate ln(1+x)"
+.LC3:
+        .string "Time taken: "
+main:
+        pushq   %rbp  #Сохраняем указатель кадра вызвавшей программы
+        movq    %rsp, %rbp      #Нормируем указатель кадра
+        subq    $80, %rsp       #,
+
+        #Начало первого cout
+        movl    $.LC2, %esi     #,
+        movl    $_ZSt4cout, %edi        #,
+        #В esi содержится адрес начала строки с меткой $.LC2 для операции "переместить блок"; в edi адрес назначения операции (cout)
+        call    std::basic_ostream<char, std::char_traits<char> >& std::operator<< <std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&, char const*) #
+        #вызов cout
+        movl    $_ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_, %esi       #, endl
+        movq    %rax, %rdi      # _1,
+        call    std::basic_ostream<char, std::char_traits<char> >::operator<<(std::basic_ostream<char, std::char_traits<char> >& (*)(std::basic_ostream<char, std::char_traits<char> >&))        #
+        #вызов функции endl;
+        #Конец первого cout
+
+        #начало cin
+        leaq    -32(%rbp), %rax #, tmp102
+        #rax равен адресу rbp-32
+
+        movq    %rax, %rsi      # tmp102, rsi = rbp-32
+        movl    $_ZSt3cin, %edi #, В edi хранится адрес назначения операции (то есть cin)
+
+        call    std::basic_istream<char, std::char_traits<char> >::operator>>(long double&)      #Читаем x (типа long double)
+        #теперь в rbp-32 хранится x
+
+        movq    %rax, %rdx      #, rdx = rax
+        leaq    -40(%rbp), %rax #, rax = rbp-40
+
+        movq    %rax, %rsi      # rax = rsi
+        movq    %rdx, %rdi      # rdx = rdi
+
+        call    std::basic_istream<char, std::char_traits<char> >::operator>>(long long&)      #Читаем n (типа long long)
+        #теперь в rbp-40 хранится n
+
+        #конец cin
+
+
+        leaq    -64(%rbp), %rax #В rax лежит адрес структуры start
+        movq    %rax, %rsi      # Передаем этот адрес в rsi, чтобы через него передать start в clock_gettime
+        movl    $4, %edi        #Передаем CLOCK_MONOTONIC_RAW через edi
+        call    clock_gettime   # вызов clock_gettime
+
+        movq    -40(%rbp), %rax # в rbp-40 хранится n, записываем n в rax
+        fldt    -32(%rbp)       # в rbp-32 хранится x, записываем его в st(0)
+        leaq    -16(%rsp), %rsp #,Выделяем место в стеке
+        fstpt   (%rsp)        #Помещаем в память по адресу в rsp число из st(0) т.е. x
+        movq    %rax, %rdi      # передаем n через регистр rdi
+        call    calculateFunc(long double, long long)     #вызов функции
+        addq    $16, %rsp       #Чистим место в стеке
+        fstpt   -16(%rbp)     # Копипуем тек. значение из регистра st в rbp-16 (Это res)
+
+        movl    $17, %edi       #Записываем константу 17 в edi и вызываем setprecision
+        call    std::setprecision(int)     #
+        movl    %eax, %esi      #
+        movl    $_ZSt4cout, %edi        #,
+        call    std::basic_ostream<char, std::char_traits<char> >& std::operator<< <char, std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&, std::_Setprecision)        #
+        #Вызываем cout и оператор <<
+
+
+        pushq   -8(%rbp)      # res
+        pushq   -16(%rbp)     # res
+        movl    $_ZSt4cout, %edi        #,
+        call    std::basic_ostream<char, std::char_traits<char> >::operator<<(long double)       #Выводим res
+        addq    $16, %rsp       #чистим стек
+
+        movl    $_ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_, %esi       #,
+        movq    %rax, %rdi      #
+        call    std::basic_ostream<char, std::char_traits<char> >::operator<<(std::basic_ostream<char, std::char_traits<char> >& (*)(std::basic_ostream<char, std::char_traits<char> >&))        #
+        #Вызов функции endl
+
+        leaq    -80(%rbp), %rax #,
+        movq    %rax, %rsi      #
+        movl    $4, %edi        #,
+        call    clock_gettime   #
+        #Вызываем clock_gettime для структуры end;
+
+        movl    $.LC3, %esi     #В esi записываем адрес начала строки "Time taken: "
+        movl    $_ZSt4cout, %edi        #,
+        call    std::basic_ostream<char, std::char_traits<char> >& std::operator<< <std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&, char const*) #
+        #печатаем эту строку
+        movq    %rax, %rdx      #, rdx = -80(%rbp)
+        movq    -80(%rbp), %rax # end.tv_sec
+        movq    -64(%rbp), %rcx # start.tv_sec
+        subq    %rcx, %rax      # rax = end.tv_sec - start.tv_sec
+
+        pxor    %xmm1, %xmm1    # Обнуляем xmm1
+        cvtsi2sdq       %rax, %xmm1   #Помещаем значение из rax в xmm1, преобразуя его в вещественное
+        movq    -72(%rbp), %rax # Это end.tv_nsec
+        movq    -56(%rbp), %rcx # Это start.tv_nsec
+        subq    %rcx, %rax      # rax = end.tv_nsec - start.tv_nsec
+
+        pxor    %xmm2, %xmm2    # Обнуляем xmm2
+        cvtsi2sdq       %rax, %xmm2   #Помещаем значение из rax в xmm2, преобразуя его в вещественное
+        movsd   .LC4(%rip), %xmm0     #, В xmm0 теперь хранится константа 0.000000001
+        mulsd   %xmm2, %xmm0  # 0.000000001*(end.tv_nsec - start.tv_nsec)
+        addsd   %xmm0, %xmm1  # Суммируем xmm0 и xmm1 (Последние действие нашего арифметического выражения), результатат в xmm1
+
+        movq    %xmm1, %rax     # rax = xmm1
+        movq    %rax, %xmm0     # xmm0 = rax = xmm1
+        movq    %rdx, %rdi      # rdi = rdx = -80(%rbp)
+
+        call    std::basic_ostream<char, std::char_traits<char> >::operator<<(double)       #Печатаем затраченное время
+
+        #endl
+        movl    $_ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_, %esi       #,
+        movq    %rax, %rdi      #
+        call    std::basic_ostream<char, std::char_traits<char> >::operator<<(std::basic_ostream<char, std::char_traits<char> >& (*)(std::basic_ostream<char, std::char_traits<char> >&))        #
+
+        movl    $0, %eax        #return 0
+
+        leave
+        ret
+__static_initialization_and_destruction_0(int, int):
+        pushq   %rbp  #
+        movq    %rsp, %rbp      #,
+        subq    $16, %rsp       #,
+        movl    %edi, -4(%rbp)  # __initialize_p, __initialize_p
+        movl    %esi, -8(%rbp)  # __priority, __priority
+        cmpl    $1, -4(%rbp)    #, __initialize_p
+        jne     .L13      #,
+        cmpl    $65535, -8(%rbp)        #, __priority
+        jne     .L13      #,
+        movl    $_ZStL8__ioinit, %edi   #,
+        call    std::ios_base::Init::Init() [complete object constructor] #
+        movl    $__dso_handle, %edx     #,
+        movl    $_ZStL8__ioinit, %esi   #,
+        movl    $_ZNSt8ios_base4InitD1Ev, %edi  #,
+        call    __cxa_atexit    #
+.L13:
+        nop     
+        leave   
+        ret     
+_GLOBAL__sub_I_calculateFunc(long double, long long):
+        pushq   %rbp  #
+        movq    %rsp, %rbp      #,
+        movl    $65535, %esi    #,
+        movl    $1, %edi        #,
+        call    __static_initialization_and_destruction_0(int, int) #
+        popq    %rbp    #
+        ret     
+.LC4:
+        .long   -400107883
+        .long   1041313291

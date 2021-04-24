@@ -1,0 +1,178 @@
+std::ctype<char>::do_widen(char) const:
+        movl    %esi, %eax
+        ret
+std::basic_ostream<char, std::char_traits<char> >& std::endl<char, std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&) [clone .isra.0]:
+        pushq   %r12
+        pushq   %rbp
+        subq    $8, %rsp
+        movq    (%rdi), %rax
+        movq    -24(%rax), %rax
+        movq    240(%rdi,%rax), %r12
+        testq   %r12, %r12
+        je      .L10
+        cmpb    $0, 56(%r12)
+        movq    %rdi, %rbp
+        je      .L5
+        movsbl  67(%r12), %esi
+
+        #Видны оптимизации: встроили basic_ostream
+.L6:
+        movq    %rbp, %rdi
+        call    std::basic_ostream<char, std::char_traits<char> >::put(char)
+        addq    $8, %rsp
+        popq    %rbp
+        movq    %rax, %rdi
+        popq    %r12
+        jmp     std::basic_ostream<char, std::char_traits<char> >::flush()
+.L5:
+        movq    %r12, %rdi
+        call    std::ctype<char>::_M_widen_init() const
+        movq    (%r12), %rax
+        movl    $10, %esi
+        movq    48(%rax), %rax
+        cmpq    $std::ctype<char>::do_widen(char) const, %rax
+        je      .L6
+        movl    $10, %esi
+        movq    %r12, %rdi
+        call    *%rax
+        movsbl  %al, %esi
+        jmp     .L6
+.L10:
+        call    std::__throw_bad_cast()
+
+        #Встроили еще какие-то функции и метки связанные с вводом и выводом.
+
+calculateFunc(long double, long long):
+        fldt    8(%rsp)
+
+        testq   %rdi, %rdi #Если n = 0, выходим из программы
+        jle     .L15
+        fldz #Помещает в стек st +0.0 (res = 0)
+        xorl    %eax, %eax # i = 0
+        jmp     .L14
+.L19:
+        fxch    %st(1) #меняем местами st(0) и st(1)
+.L14: #sign = (i%2 == 0)? 1:-1;
+
+        fld     %st(1) #Поместить -1 в стек st на позицию st(1)
+        testb   $1, %al #Смотрим, оканчивается ли на 1 битовая запись i (i%2 != 0)
+        je      .L13 #Если оканчивается, идем еа L13
+        fchs #Меняем знак, если не оканчивается (т.е. с -1 на 1)
+.L13: #res += (1.0L*sign*x)/(i+1);
+        addq    $1, %rax #i+1
+        movq    %rax, -16(%rsp)
+        fildq   -16(%rsp)#i+1 в st
+        fdivrp  %st, %st(1) #Инверсное деление с извлечением из стека, (1.0L*sign*x)/(i+1)
+        faddp   %st, %st(1) #res += (1.0L*sign*x)/(i+1)
+        fxch    %st(1) # теперь res на вершине стека st
+
+        fmul    %st(0), %st #x*=x
+
+        cmpq    %rdi, %rax # rax - rdi, устанавливает флаги
+        jne     .L19 #Пока i!=n, идем на метку L19
+        fstp    %st(0) #Копируем из st(0) в st(0), выталкиваем верхний элемент из регистрового стека
+        #флаг p - флаг неточной операции
+        ret
+.L15: #Выход из программы
+        fstp    %st(0)
+        fldz
+        ret
+.LC2:
+        .string "Enter x and n to calculate ln(1+x)"
+.LC3:
+        .string "Time taken: "
+main:
+        subq    $72, %rsp #Двигаем вершину стека, выделяем память
+        movl    $.LC2, %esi
+        movl    $std::cout, %edi
+        call    std::basic_ostream<char, std::char_traits<char> >& std::operator<< <std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&, char const*)
+        #Печатаем строку из .LC2
+
+        movq    %rax, %rdi
+        call    std::basic_ostream<char, std::char_traits<char> >& std::endl<char, std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&) [clone .isra.0]
+        #Вызываем endl
+
+        leaq    16(%rsp), %rsi
+        movl    $_ZSt3cin, %edi
+        call    std::basic_istream<char, std::char_traits<char> >& std::basic_istream<char, std::char_traits<char> >::_M_extract<long double>(long double&)
+        leaq    8(%rsp), %rsi
+        movq    %rax, %rdi
+        call    std::basic_istream<char, std::char_traits<char> >& std::basic_istream<char, std::char_traits<char> >::_M_extract<long long>(long long&)
+        #Читаем x и n, выделяем 16 байт и 8 соотв.
+
+        leaq    32(%rsp), %rsi # структура start
+        movl    $4, %edi #CLOCK_MONOTONIC_RAW
+        call    clock_gettime
+        #вызываем clock_gettime
+
+        pushq   24(%rsp)
+        pushq   24(%rsp)#добавляем значение из rsp+24 на стек
+        movq    24(%rsp), %rdi #rdi = rsp+24
+        call    calculateFunc(long double, long long)
+        #Вызываем calculateFunc
+
+        movq    std::cout(%rip), %rax #В rax адрес rip + адрес std::cout
+        movl    $std::cout, %edi # edi = адрес std::cout
+        movq    -24(%rax), %rax
+        fstpt   (%rsp)
+        movq    $17, std::cout+8(%rax) # std::cout+8(%rax) = 17
+        #Видно, как при оптимизации аргументы укладываются ближе к функции
+        call    std::basic_ostream<char, std::char_traits<char> >& std::basic_ostream<char, std::char_traits<char> >::_M_insert<long double>(long double)
+        #setprecision
+
+        movq    %rax, %rdi
+        popq    %rax
+        popq    %rdx
+        call    std::basic_ostream<char, std::char_traits<char> >& std::endl<char, std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&) [clone .isra.0]
+        #cout, вывод res
+
+        leaq    48(%rsp), %rsi
+        movl    $4, %edi
+        call    clock_gettime
+        #Вызов clock_gettime для структуры end
+
+        movl    $.LC3, %esi
+        movl    $std::cout, %edi
+        call    std::basic_ostream<char, std::char_traits<char> >& std::operator<< <std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&, char const*)
+        #печатаем строку из .LC3
+
+        pxor    %xmm0, %xmm0
+        pxor    %xmm1, %xmm1
+        #Обнуляем xmm0 и xmm1
+
+        movq    %rax, %rdi #rdi = rax
+
+        movq    56(%rsp), %rax # rax = rsp+56; это end.tv_nsec
+        subq    40(%rsp), %rax #end.tv_sec - start.tv_nsec
+
+        cvtsi2sdq       %rax, %xmm0 #результат вычитания в xmm0
+        movq    48(%rsp), %rax #rax = end.tv_sec
+
+        mulsd   .LC4(%rip), %xmm0 #Умножаем скобку на 10^-9
+
+        subq    32(%rsp), %rax # end.tv_sec - start.tv_nsec
+        cvtsi2sdq       %rax, %xmm1 # xmm1 = end.tv_sec - start.tv_nsec
+        addsd   %xmm1, %xmm0 #Складываем полученные числа, досчитываем выражение
+
+        call    std::basic_ostream<char, std::char_traits<char> >& std::basic_ostream<char, std::char_traits<char> >::_M_insert<double>(double)
+        #Печатаем полученное выражение
+
+        movq    %rax, %rdi
+        call    std::basic_ostream<char, std::char_traits<char> >& std::endl<char, std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&) [clone .isra.0]
+        #endl
+
+        xorl    %eax, %eax
+        addq    $72, %rsp #Перемещаем указатель на стек обратно вверх
+        ret
+_GLOBAL__sub_I_calculateFunc(long double, long long):
+        subq    $8, %rsp
+        movl    $_ZStL8__ioinit, %edi
+        call    std::ios_base::Init::Init() [complete object constructor]
+        movl    $__dso_handle, %edx
+        movl    $_ZStL8__ioinit, %esi
+        movl    $_ZNSt8ios_base4InitD1Ev, %edi
+        addq    $8, %rsp
+        jmp     __cxa_atexit
+.LC4:
+        .long   -400107883
+        .long   1041313291

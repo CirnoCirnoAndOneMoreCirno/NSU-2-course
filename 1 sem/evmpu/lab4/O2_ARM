@@ -1,0 +1,217 @@
+#Функция calculateFunc встроена дальше в код, поэтому нигде не вызывается.
+#На метках L4, L3, L5 происходит то же самое, что и на метках L14, L13 и L12 соответственно
+
+calculateFunc(long double, long long):
+        stp     x29, x30, [sp, -80]!
+        cmp     x0, 0
+        mov     x29, sp
+        ble     .L5
+        mov     v2.16b, v0.16b
+        stp     x19, x20, [sp, 16]
+        mov     x20, x0
+        mov     x19, 0
+        stp     xzr, xzr, [sp, 32]
+.L4:
+        adrp    x0, .LC0
+        add     x0, x0, :lo12:.LC0
+        mov     v0.16b, v2.16b
+        mov     v4.16b, v2.16b
+        ldr     q1, [x0]
+        tbz     x19, 0, .L3
+        str     q2, [sp, 48]
+        bl      __multf3
+        mov     v4.16b, v0.16b
+        ldr     q2, [sp, 48]
+.L3:
+        add     x19, x19, 1
+        str     q4, [sp, 48]
+        mov     x0, x19
+        str     q2, [sp, 64]
+        bl      __floatditf
+        mov     v1.16b, v0.16b
+        ldr     q4, [sp, 48]
+        mov     v0.16b, v4.16b
+        bl      __divtf3
+        mov     v1.16b, v0.16b
+        ldr     q0, [sp, 32]
+        bl      __addtf3
+        str     q0, [sp, 32]
+        ldr     q2, [sp, 64]
+        mov     v1.16b, v2.16b
+        mov     v0.16b, v2.16b
+        bl      __multf3
+        mov     v2.16b, v0.16b
+        cmp     x19, x20
+        bne     .L4
+        ldp     x19, x20, [sp, 16]
+        ldr     q0, [sp, 32]
+        ldp     x29, x30, [sp], 80
+        ret
+.L5:
+        stp     xzr, xzr, [sp, 32]
+        ldr     q0, [sp, 32]
+        ldp     x29, x30, [sp], 80
+        ret
+main:
+        stp     x29, x30, [sp, -160]!
+
+        adrp    x1, .LC1
+        add     x1, x1, :lo12:.LC1
+        #В х1 адрес строки LC1
+        mov     x29, sp
+        mov     x2, 34
+        stp     x21, x22, [sp, 32]
+        adrp    x22, _ZSt4cout
+        add     x21, x22, :lo12:_ZSt4cout
+        #В x1 адрес назначения строки LC1
+
+        stp     x19, x20, [sp, 16]
+        mov     x0, x21
+        #Вызов функции cout
+        bl      std::basic_ostream<char, std::char_traits<char> >& std::__ostream_insert<char, std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&, char const*, long)
+        mov     x0, x21
+        #Вызов функции endl
+        bl      std::basic_ostream<char, std::char_traits<char> >& std::endl<char, std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&)
+
+        add     x1, sp, 112
+        adrp    x0, _ZSt3cin
+        add     x0, x0, :lo12:_ZSt3cin
+        bl      std::basic_istream<char, std::char_traits<char> >& std::basic_istream<char, std::char_traits<char> >::_M_extract<long double>(long double&)
+        #Считывыаем переменную x
+        add     x1, sp, 104
+        bl      std::basic_istream<char, std::char_traits<char> >& std::basic_istream<char, std::char_traits<char> >::_M_extract<long long>(long long&)
+        #Считываем переменную n
+
+        add     x1, sp, 128
+        #В x1 лежит структура start
+        mov     w0, 4
+        bl      clock_gettime
+        #Вызываем функцию clock_gettime
+
+        stp     xzr, xzr, [sp, 48]
+        ldr     q2, [sp, 112]
+        #В q2 помещаем x
+        ldr     x20, [sp, 104]
+        #В x20 помещаем n
+        cmp     x20, 0
+        #Если n <= 0, то идем на метку L12, т.е. даже не заходим в функцию calculateFunc
+        ble     .L12
+        mov     x19, 0 #i = 0
+
+        #Далее идет функция calculateFunc
+.L14:
+        adrp    x0, .LC0
+        add     x0, x0, :lo12:.LC0
+        #x0 = -1
+        mov     v0.16b, v2.16b
+        mov     v4.16b, v2.16b
+        ldr     q1, [x0]
+        tbz     x19, 0, .L13 #Если (i%2) == 0, то идем на метку L13, иначе домножаем x на -1
+        str     q2, [sp, 64] #Записываем x в sp+64
+        bl      __multf3 #x*sign
+        mov     v4.16b, v0.16b
+        ldr     q2, [sp, 64] #Обратно берем x из sp+64
+.L13:
+        add     x19, x19, 1 #В регистре х19 лежит (i+1)
+        str     q2, [sp, 64]#Записываем x в sp+64
+        mov     x0, x19     #Теперь в x0 лежит (i+1)
+        str     q4, [sp, 80]
+        bl      __floatditf #Делаем из (i+1) число с плавающей точкой
+        mov     v1.16b, v0.16b
+        ldr     q4, [sp, 80]
+        mov     v0.16b, v4.16b
+        bl      __divtf3   # (sign*x)/(i+1)
+        mov     v1.16b, v0.16b
+        ldr     q0, [sp, 48]
+        bl      __addtf3 #res += (sign*x)/(i+1)
+        str     q0, [sp, 48] #В sp+48 записываем res
+
+        ldr     q2, [sp, 64] #x
+        mov     v1.16b, v2.16b
+        mov     v0.16b, v2.16b
+        # записываем в v1 и v0 переменную x
+        bl      __multf3 #x*=x
+        mov     v2.16b, v0.16b
+
+        cmp     x20, x19 #Если i != n, идем на метку L14
+        bne     .L14
+.L12:
+        ldr     x1, [x22, #:lo12:_ZSt4cout]
+        mov     x2, 17
+        ldr     q0, [sp, 48]
+        mov     x0, x21
+        ldr     x1, [x1, -24]
+        add     x1, x21, x1
+        str     x2, [x1, 8]
+        bl      std::basic_ostream<char, std::char_traits<char> >& std::basic_ostream<char, std::char_traits<char> >::_M_insert<long double>(long double)
+        bl      std::basic_ostream<char, std::char_traits<char> >& std::endl<char, std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&)
+        #Вызываем функцию setprecision и выводим res
+
+        add     x1, sp, 144
+        #Создаем структуру end, она лежит по адресу sp+144
+        mov     w0, 4
+        bl      clock_gettime
+        #Вызываем функцию clock_gettime
+
+        mov     x2, 12
+        mov     x0, x21
+        adrp    x1, .LC2
+        add     x1, x1, :lo12:.LC2
+        bl      std::basic_ostream<char, std::char_traits<char> >& std::__ostream_insert<char, std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&, char const*, long)
+        #Печатаем строку "Time taken: "
+
+        ldp     x2, x1, [sp, 128]
+        #В x2
+        adrp    x0, .LC3
+        ldp     d1, d0, [sp, 144]
+        #В d1 end.tv_sec, в d0 end.tv_nsec
+
+        ldr     d2, [x0, #:lo12:.LC3]
+        #В d2 лежит константа 0.000000001
+
+        mov     x0, x21
+        fmov    d3, x2
+        sub     d1, d1, d3 #В d1 лежит (end.tv_sec - start.tv_sec)
+        fmov    d3, x1
+        sub     d0, d0, d3 #В d0 лежит (end.tv_nsec - start.tv_nsec)
+        scvtf   d1, d1
+        scvtf   d0, d0
+        fmadd   d0, d0, d2, d1 #d0 = d0*d2 + d1
+        bl      std::basic_ostream<char, std::char_traits<char> >& std::basic_ostream<char, std::char_traits<char> >::_M_insert<double>(double)
+        bl      std::basic_ostream<char, std::char_traits<char> >& std::endl<char, std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&)
+        #Выводим разницу во времени и вызываем endl
+
+        mov     w0, 0
+        ldp     x19, x20, [sp, 16]
+        ldp     x21, x22, [sp, 32]
+        ldp     x29, x30, [sp], 160
+        ret
+_GLOBAL__sub_I_calculateFunc(long double, long long):
+        stp     x29, x30, [sp, -32]!
+        mov     x29, sp
+        str     x19, [sp, 16]
+        adrp    x19, .LANCHOR0
+        add     x19, x19, :lo12:.LANCHOR0
+        mov     x0, x19
+        bl      std::ios_base::Init::Init() [complete object constructor]
+        mov     x1, x19
+        adrp    x2, __dso_handle
+        ldr     x19, [sp, 16]
+        adrp    x0, _ZNSt8ios_base4InitD1Ev
+        ldp     x29, x30, [sp], 32
+        add     x2, x2, :lo12:__dso_handle
+        add     x0, x0, :lo12:_ZNSt8ios_base4InitD1Ev
+        b       __cxa_atexit
+.LC0:
+        .word   0
+        .word   0
+        .word   0
+        .word   1074200064
+.LC3:
+        .word   3894859413
+        .word   1041313291
+.LC1:
+        .string "Enter x and n to calculate ln(1+x)"
+        .zero   5
+.LC2:
+        .string "Time taken: "

@@ -1,0 +1,226 @@
+std::setprecision(int):
+        sub     sp, sp, #16
+        str     w0, [sp, 12]
+        ldr     w0, [sp, 12]
+        add     sp, sp, 16
+        ret
+calculateFunc(long double, long long):
+        stp     x29, x30, [sp, -96]!
+        mov     x29, sp
+        #Выделяем память под функцию
+
+        str     q0, [sp, 48] # теперь по адресу sp+48 лежит x
+        str     x0, [sp, 40] # теперь по адресу sp+40 лежит n
+        stp     xzr, xzr, [sp, 80] #res = 0; Делается это
+        str     xzr, [sp, 72] #i = 0; i лежит по адресу sp+72
+.L7:
+        ldr     x1, [sp, 72] # В x1 переменная i
+        ldr     x0, [sp, 40] # В x0 переменная n
+        cmp     x1, x0 #Сравниваем i и n
+        bge     .L4 #Если n >= i, идем на метку L4
+
+        ldr     x0, [sp, 72] #В x0 лежит i
+        and     x0, x0, 1 #Смотрим младший бит x0, т.е. x0 = i%2
+        cmp     x0, 0
+        bne     .L5 #Если (i%2) != 0, то идем на метку L5
+        mov     w0, 1 #Иначе записываем в w0 число 1
+        b       .L6 # идем на L6
+.L5:
+        mov     w0, 255 #записываем в w0 число -1
+.L6:
+        #В w0 хранится sign
+        strb    w0, [sp, 71] #Записываем в sp+71 переменную sign
+        ldrb    w0, [sp, 71] #Записываем w0 значение из sp+71, это тот же sign
+
+        bl      __floatsitf #Делаем из sign число с плавающей точкой
+
+        ldr     q1, [sp, 48] #В q1 лежит x
+        bl      __multf3 #sign*x
+        str     q0, [sp, 16] #В q0 вычисленное значение (1.0L*sign*x), записываем его в sp+16
+        ldr     x0, [sp, 72] #В x0 переменная i
+        add     x0, x0, 1 # (i+1)
+        bl      __floatditf # Приводим (i+1) к числу с плавающей точкой
+        mov     v1.16b, v0.16b # v1 = v0, в v1 лежит (i+1)
+
+        ldr     q0, [sp, 16] #В q0 записываем левую скобку
+        bl      __divtf3 #Делим скобки
+        mov     v1.16b, v0.16b
+        ldr     q0, [sp, 80]
+        bl      __addtf3 #res+= ...
+        str     q0, [sp, 80] # В sp+80 теперь лежит res
+
+        ldr     q1, [sp, 48]
+        ldr     q0, [sp, 48]
+        bl      __multf3    #x*=x
+        str     q0, [sp, 48]
+
+        ldr     x0, [sp, 72]
+        add     x0, x0, 1 #  i++
+        str     x0, [sp, 72]
+        b       .L7 #Идем обратно на метку L7
+.L4:
+        ldr     q0, [sp, 80] #записываем res в q0
+        ldp     x29, x30, [sp], 96
+        ret
+.LC0:
+        .string "Enter x and n to calculate ln(1+x)"
+.LC1:
+        .string "Time taken: "
+main:
+        stp     x29, x30, [sp, -96]!
+        #sp-=96
+        #*(sp-96) = x29
+        #*(sp-96 + 8) = x30
+        mov     x29, sp
+        #x29 = sp
+
+        #cout
+        adrp    x0, .LC0 #В x0 страница (размером 4кб) с строкой по метке LC0
+        add     x1, x0, :lo12:.LC0 #Находим младшие 12 бит, вычисляем полный адрес LC0 и храним его в x1
+
+        adrp    x0, _ZSt4cout
+        add     x0, x0, :lo12:_ZSt4cout
+        #Вычисляем адрес назначения, храним его в cout
+
+        #Вызов cout
+        bl      std::basic_ostream<char, std::char_traits<char> >& std::operator<< <std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&, char const*)
+
+        mov     x2, x0 #x2 = x0
+        adrp    x0, _ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_
+        add     x1, x0, :lo12:_ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_
+        #Вычисляем адрес функции endl
+        mov     x0, x2
+        #Вызываем endl
+        bl      std::basic_ostream<char, std::char_traits<char> >::operator<<(std::basic_ostream<char, std::char_traits<char> >& (*)(std::basic_ostream<char, std::char_traits<char> >&))
+
+        #cin
+        add     x0, sp, 64 #x0 = sp+64
+        mov     x1, x0
+        adrp    x0, _ZSt3cin
+        add     x0, x0, :lo12:_ZSt3cin
+        bl      std::basic_istream<char, std::char_traits<char> >::operator>>(long double&)
+        #Считываем x, x лежит по адресу sp+64
+
+        mov     x2, x0
+        add     x0, sp, 56
+        mov     x1, x0
+        mov     x0, x2
+        bl      std::basic_istream<char, std::char_traits<char> >::operator>>(long long&)
+        #Считываем n, n дежит по адресу sp+56
+
+        add     x0, sp, 40
+        mov     x1, x0
+        #Выделяем память под структуру start, теперь start лежит по адресу sp+40
+        mov     w0, 4
+        #Вызываем функцию clock_gettime, start передаем через x1, CLOCK_MONOTONIC_RAW через w0
+        bl      clock_gettime
+
+        ldr     q0, [sp, 64]
+        ldr     x0, [sp, 56]
+        #Вызываем calculateFunc, x передаем через q0, n через x0
+        bl      calculateFunc(long double, long long)
+        str     q0, [sp, 80] #Сохраняем в sp+80 результат
+
+        #Вызываем функцию setprecision, передаем параметр через w0
+        mov     w0, 17
+        bl      std::setprecision(int)
+        mov     w1, w0
+        adrp    x0, _ZSt4cout
+        add     x0, x0, :lo12:_ZSt4cout
+        bl      std::basic_ostream<char, std::char_traits<char> >& std::operator<< <char, std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&, std::_Setprecision)
+
+        #Выводим res
+        ldr     q0, [sp, 80] #Записываем в q0 значение из sp+80 (res)
+        adrp    x0, _ZSt4cout
+        add     x0, x0, :lo12:_ZSt4cout
+        bl      std::basic_ostream<char, std::char_traits<char> >::operator<<(long double)
+
+        #Вызываем endl
+        mov     x2, x0
+        adrp    x0, _ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_
+        add     x1, x0, :lo12:_ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_
+        mov     x0, x2
+        bl      std::basic_ostream<char, std::char_traits<char> >::operator<<(std::basic_ostream<char, std::char_traits<char> >& (*)(std::basic_ostream<char, std::char_traits<char> >&))
+
+        add     x0, sp, 24
+        #Выделяем память под структуру end
+        mov     x1, x0
+        mov     w0, 4
+        #Вызываем функцию clock_gettime, end передаем через x1, CLOCK_MONOTONIC_RAW через w0
+        bl      clock_gettime
+
+
+        #Выводим строку "Time taken: ", все аналогично предыдущему выводу строки
+        adrp    x0, .LC1
+        add     x1, x0, :lo12:.LC1
+        adrp    x0, _ZSt4cout
+        add     x0, x0, :lo12:_ZSt4cout
+        bl      std::basic_ostream<char, std::char_traits<char> >& std::operator<< <std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&, char const*)
+
+        mov     x2, x0 #Сохраняем x0 в регистре x2
+        ldr     x1, [sp, 24] #x1 = *(sp+24), это end.tv_sec
+        ldr     x0, [sp, 40] #x0 = *(sp+40), это start.tv_sec
+        sub     x0, x1, x0 #x0 = x1 - x0
+        scvtf   d1, x0 #Записываем в d1 значение их х0, конвертируя его в значение с плавающей точкой
+
+        ldr     x1, [sp, 32] #x1 = end.tv_nsec
+        ldr     x0, [sp, 48] #x0 = start.tv_nsec
+        sub     x0, x1, x0 #x0 = end.tv_nsec - start.tv_nsec
+        scvtf   d0, x0 #Конвертируем полученную разность в число с плавающей точкой и записываем это в d0
+
+        adrp    x0, .LC2
+        ldr     d2, [x0, :lo12:.LC2]
+        #d2 = 0.000000001
+        fmul    d0, d0, d2 #d0 = 0.000000001*(end.tv_nsec - start.tv_nsec)
+        fadd    d0, d1, d0 #d0 = (end.tv_sec - start.tv_sec) + (0.000000001*(end.tv_nsec - start.tv_nsec))
+
+        #Печатаем затраченное время
+        mov     x0, x2
+        bl      std::basic_ostream<char, std::char_traits<char> >::operator<<(double)
+        mov     x2, x0
+        adrp    x0, _ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_
+        add     x1, x0, :lo12:_ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_
+        mov     x0, x2
+        bl      std::basic_ostream<char, std::char_traits<char> >::operator<<(std::basic_ostream<char, std::char_traits<char> >& (*)(std::basic_ostream<char, std::char_traits<char> >&))
+
+
+        mov     w0, 0
+        ldp     x29, x30, [sp], 96 #Двигаем указатель на стек обратно к старшим значениям
+        ret
+__static_initialization_and_destruction_0(int, int):
+        stp     x29, x30, [sp, -32]!
+        mov     x29, sp
+        str     w0, [sp, 28]
+        str     w1, [sp, 24]
+        ldr     w0, [sp, 28]
+        cmp     w0, 1
+        bne     .L13
+        ldr     w1, [sp, 24]
+        mov     w0, 65535
+        cmp     w1, w0
+        bne     .L13
+        adrp    x0, _ZStL8__ioinit
+        add     x0, x0, :lo12:_ZStL8__ioinit
+        bl      std::ios_base::Init::Init() [complete object constructor]
+        adrp    x0, __dso_handle
+        add     x2, x0, :lo12:__dso_handle
+        adrp    x0, _ZStL8__ioinit
+        add     x1, x0, :lo12:_ZStL8__ioinit
+        adrp    x0, _ZNSt8ios_base4InitD1Ev
+        add     x0, x0, :lo12:_ZNSt8ios_base4InitD1Ev
+        bl      __cxa_atexit
+.L13:
+        nop
+        ldp     x29, x30, [sp], 32
+        ret
+_GLOBAL__sub_I_calculateFunc(long double, long long):
+        stp     x29, x30, [sp, -16]!
+        mov     x29, sp
+        mov     w1, 65535
+        mov     w0, 1
+        bl      __static_initialization_and_destruction_0(int, int)
+        ldp     x29, x30, [sp], 16
+        ret
+.LC2:
+        .word   3894859413
+        .word   1041313291
